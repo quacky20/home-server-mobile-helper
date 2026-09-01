@@ -9,28 +9,123 @@ public class WatchdogService extends Service {
 
     private static final String TAG = "Watchdog";
 
+    private static final long INITIAL_DELAY =
+            30000; // 30 seconds
+
+    private static final long CHECK_INTERVAL =
+            5 * 60 * 1000; // 5 minutes
+
+    private Thread watchdogThread;
+    private volatile boolean running = true;
+
     @Override
     public void onCreate() {
         super.onCreate();
 
         Log.d(TAG, "Watchdog service started");
 
-        new Thread(new Runnable() {
-            @Override
-            public void run() {
+        watchdogThread = new Thread(
+                new Runnable() {
+                    @Override
+                    public void run() {
 
-                // Give Android/Wi-Fi some time to settle after boot.
-                try {
-                    Thread.sleep(30000);
-                } catch (InterruptedException ignored) {
+                        // Give Android/Wi-Fi time to settle.
+                        sleep(INITIAL_DELAY);
+
+                        Log.d(
+                                TAG,
+                                "Watchdog initial check"
+                        );
+
+                        while (running) {
+
+                            performCheck();
+
+                            sleep(CHECK_INTERVAL);
+                        }
+
+                        Log.d(
+                                TAG,
+                                "Watchdog thread stopped"
+                        );
+                    }
                 }
+        );
 
-                Log.d(TAG, "Watchdog initial check");
+        watchdogThread.start();
+    }
 
-                // We'll put our connectivity/authentication
-                // logic here next.
+    private void performCheck() {
+
+        Log.d(
+                TAG,
+                "Performing authentication check"
+        );
+
+        try {
+
+            AuthService authService =
+                    new AuthService(this);
+
+            if (authService.isAuthenticated()) {
+
+                Log.d(
+                        TAG,
+                        "Internet access is active"
+                );
+
+                return;
             }
-        }).start();
+
+            Log.d(
+                    TAG,
+                    "Not authenticated. " +
+                            "Attempting login..."
+            );
+
+            boolean success =
+                    authService.authenticate();
+
+            if (success) {
+
+                Log.d(
+                        TAG,
+                        "Authentication successful"
+                );
+
+            } else {
+
+                Log.e(
+                        TAG,
+                        "Authentication failed"
+                );
+            }
+
+        } catch (Exception e) {
+
+            Log.e(
+                    TAG,
+                    "Watchdog check failed",
+                    e
+            );
+        }
+    }
+
+    private void sleep(long milliseconds) {
+
+        try {
+
+            Thread.sleep(milliseconds);
+
+        } catch (InterruptedException e) {
+
+            Log.d(
+                    TAG,
+                    "Watchdog sleep interrupted"
+            );
+
+            Thread.currentThread().interrupt();
+        }
     }
 
     @Override
@@ -39,7 +134,25 @@ public class WatchdogService extends Service {
             int flags,
             int startId
     ) {
+
         return START_STICKY;
+    }
+
+    @Override
+    public void onDestroy() {
+
+        running = false;
+
+        if (watchdogThread != null) {
+            watchdogThread.interrupt();
+        }
+
+        Log.d(
+                TAG,
+                "Watchdog service destroyed"
+        );
+
+        super.onDestroy();
     }
 
     @Override

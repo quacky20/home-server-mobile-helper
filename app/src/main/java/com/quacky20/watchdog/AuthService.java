@@ -100,6 +100,12 @@ public class AuthService {
             int responseCode =
                     connection.getResponseCode();
 
+            Log.d(
+                    TAG,
+                    "Login Set-Cookie: " +
+                            connection.getHeaderField("Set-Cookie")
+            );
+
             String response =
                     readResponse(connection);
 
@@ -180,5 +186,78 @@ public class AuthService {
         reader.close();
 
         return result.toString();
+    }
+
+    public boolean isAuthenticated() {
+
+        Log.d(
+                TAG,
+                "Checking NetAccess authentication"
+        );
+
+        try {
+
+            NetworkClient networkClient =
+                    new NetworkClient(context);
+
+            HttpsURLConnection connection =
+                    networkClient.openConnection(
+                            "https://netaccess.iitism.ac.in:6082/"
+                    );
+
+            connection.setRequestMethod("GET");
+
+            connection.setConnectTimeout(15000);
+            connection.setReadTimeout(15000);
+
+            int responseCode =
+                    connection.getResponseCode();
+
+            String response =
+                    readResponse(connection);
+
+            Log.d(
+                    TAG,
+                    "Check response: " +
+                            response.substring(
+                                    0,
+                                    Math.min(response.length(), 1000)
+                            )
+            );
+
+            connection.disconnect();
+
+            Log.d(
+                    TAG,
+                    "Authentication check: HTTP " +
+                            responseCode
+            );
+
+            if (responseCode != 200) {
+                return false;
+            }
+
+            boolean authenticated =
+                    response.contains("Already Connected — IIT(ISM)") ||
+                            response.contains("Access Granted — IIT(ISM)");
+
+            Log.d(
+                    TAG,
+                    "Authenticated: " +
+                            authenticated
+            );
+
+            return authenticated;
+
+        } catch (Exception e) {
+
+            Log.e(
+                    TAG,
+                    "Authentication check failed",
+                    e
+            );
+
+            return false;
+        }
     }
 }
